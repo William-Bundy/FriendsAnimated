@@ -97,12 +97,18 @@ class FriendListTVC:UITableViewController, LinearTransitionProvider, UINavigatio
 	override func viewDidLoad() {
 		navigationController?.delegate = self
 	}
+
+	var lastPath:IndexPath? = nil
 	var elements: [String : UIView] {
 		if let path = tableView.indexPathForSelectedRow {
+			lastPath = path
 			let defaultCell = tableView.cellForRow(at: path)
 			guard let cell = defaultCell as? FriendCell else {return [:]}
 			return cell.elements
-
+		} else if let path = lastPath {
+			let defaultCell = tableView.cellForRow(at: path)
+			guard let cell = defaultCell as? FriendCell else {return [:]}
+			return cell.elements
 		}
 		return [:]
 	}
@@ -184,17 +190,22 @@ extension UIView
 class LinearAnimator:NSObject, UIViewControllerAnimatedTransitioning
 {
 	func transitionDuration(using transitionContext: UIViewControllerContextTransitioning?) -> TimeInterval {
-		return 1.0
+		return 0.5
 	}
 
 	func animateTransition(using transitionContext: UIViewControllerContextTransitioning) {
 		print("animate entered")
 		guard let toVC = transitionContext.viewController(forKey: .to) as? LinearTransitionProviderVC,
 		let fromVC = transitionContext.viewController(forKey: .from) as? LinearTransitionProviderVC,
-			let toView = transitionContext.view(forKey: .to) else {print("to/from wasn't LTP"); return}
+			let toView = transitionContext.view(forKey: .to),
+			let fromView = transitionContext.view(forKey: .from) else {print("to/from wasn't LTP"); return}
 		print("guard passed")
 
 		let container = transitionContext.containerView
+		container.backgroundColor = .white
+		container.addSubview(toView)
+		toView.alpha = 0
+		toView.layoutIfNeeded()
 
 		let movingParts = elementUnion(fromVC, toVC)
 		var animated:[UIView] = []
@@ -209,15 +220,17 @@ class LinearAnimator:NSObject, UIViewControllerAnimatedTransitioning
 			part.to.alpha = 0
 		}
 
-		toView.layoutIfNeeded()
 
 		print("animate started")
 		UIView.animate(withDuration: transitionDuration(using: transitionContext), animations: {
 			for i in 0..<movingParts.count {
 				let part = movingParts[i]
-				animated[i].frame = container.convert(part.to.bounds, from: part.to)
-			}
+				let newFrame = container.convert(part.to.bounds, from: part.to)
+				animated[i].frame = newFrame
 
+			}
+			fromView.alpha = 0
+			toView.alpha = 1
 		}) { success in
 			for i in 0..<movingParts.count {
 				animated[i].removeFromSuperview()
@@ -228,7 +241,7 @@ class LinearAnimator:NSObject, UIViewControllerAnimatedTransitioning
 			}
 
 			transitionContext.completeTransition(success)
-			container.addSubview(toView)
+			toView.alpha = 1
 		}
 	}
 
